@@ -1,0 +1,1342 @@
+{
+  "info": {
+    "name": "P2 - Grupo - PetClinic REST",
+    "description": "Testes de integração/API do grupo P2 (Testes e Qualidade de Software). Cada requisição indica o caso de teste (CT) e o requisito (RF/RNF) relacionados. Requer o back-end em execução e a variável baseUrl.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Verificações aplicadas a todas as requisições (RNF-01 e RNF-03)",
+          "pm.test(\"RNF-03: nenhuma resposta 500 (erro interno)\", () => pm.expect(pm.response.code).to.be.below(500));",
+          "pm.test(\"RNF-03: resposta não expõe stack trace\", () => {",
+          "    const texto = pm.response.text();",
+          "    pm.expect(texto).to.not.match(/\\tat [a-z]+\\.|\\.java:\\d+\\)/);",
+          "});",
+          "pm.test(\"RNF-01: tempo de resposta abaixo de \" + pm.environment.get(\"limiteMs\") + \" ms\", () =>",
+          "    pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get(\"limiteMs\") || 500)));"
+        ]
+      }
+    }
+  ],
+  "variable": [],
+  "item": [
+    {
+      "name": "API-01 - Ciclo de vida do dono (RF-01, CT-003)",
+      "item": [
+        {
+          "name": "CT-003a Criar dono válido",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/owners",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "owners"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Ana\",\n  \"lastName\": \"TesteApi\",\n  \"address\": \"Rua A, 100\",\n  \"city\": \"Bauru\",\n  \"telephone\": \"1432345678\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "const dono = pm.response.json();",
+                  "pm.test(\"Retorna id numérico\", () => pm.expect(dono.id).to.be.a(\"number\"));",
+                  "pm.test(\"Dados retornados iguais aos enviados\", () => {",
+                  "    const enviado = JSON.parse(pm.request.body.raw);",
+                  "    Object.keys(enviado).forEach(k => pm.expect(dono[k]).to.eql(enviado[k]));",
+                  "});",
+                  "pm.collectionVariables.set(\"ownerId\", dono.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CT-003b Consultar dono criado",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/owners/{{ownerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "owners",
+                "{{ownerId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const dono = pm.response.json();",
+                  "pm.test(\"Contrato básico: campos e tipos\", () => {",
+                  "    pm.expect(dono).to.include.keys(\"id\", \"firstName\", \"lastName\", \"address\", \"city\", \"telephone\", \"pets\");",
+                  "    pm.expect(dono.pets).to.be.an(\"array\");",
+                  "});",
+                  "pm.test(\"Mesmo dono criado\", () => pm.expect(dono.id).to.eql(Number(pm.collectionVariables.get(\"ownerId\"))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Limpeza: excluir dono criado",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/owners/{{ownerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "owners",
+                "{{ownerId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Exclusão bem-sucedida (2xx)\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CT-003c Dono excluído não é mais encontrado",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/owners/{{ownerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "owners",
+                "{{ownerId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "API-02 - Validações do cadastro de dono (RF-01, RF-02, RF-03)",
+      "item": [
+        {
+          "name": "CT-004 Dono sem cidade",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/owners",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "owners"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Ana\",\n  \"lastName\": \"TesteApi\",\n  \"address\": \"Rua A, 100\",\n  \"telephone\": \"1432345678\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400 (entrada recusada)\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Erro aponta o campo city\", () => {",
+                  "    const erros = pm.response.json().schemaValidationErrors || [];",
+                  "    pm.expect(erros.map(e => e.field)).to.include(\"city\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CT-007 Telefone com 11 dígitos (limite + 1)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/owners",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "owners"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Ana\",\n  \"lastName\": \"TesteApi\",\n  \"address\": \"Rua A, 100\",\n  \"city\": \"Bauru\",\n  \"telephone\": \"14323456789\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400 (entrada recusada)\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Erro aponta o campo telephone\", () => {",
+                  "    const erros = pm.response.json().schemaValidationErrors || [];",
+                  "    pm.expect(erros.map(e => e.field)).to.include(\"telephone\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CT-008 Telefone com letras",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/owners",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "owners"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Ana\",\n  \"lastName\": \"TesteApi\",\n  \"address\": \"Rua A, 100\",\n  \"city\": \"Bauru\",\n  \"telephone\": \"14abc45678\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400 (entrada recusada)\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Erro aponta o campo telephone\", () => {",
+                  "    const erros = pm.response.json().schemaValidationErrors || [];",
+                  "    pm.expect(erros.map(e => e.field)).to.include(\"telephone\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CT-010 Nome com 31 caracteres (limite + 1)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/owners",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "owners"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\",\n  \"lastName\": \"TesteApi\",\n  \"address\": \"Rua A, 100\",\n  \"city\": \"Bauru\",\n  \"telephone\": \"1432345678\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400 (entrada recusada)\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Erro aponta o campo firstName\", () => {",
+                  "    const erros = pm.response.json().schemaValidationErrors || [];",
+                  "    pm.expect(erros.map(e => e.field)).to.include(\"firstName\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CT-011a Cidade com 80 caracteres (limite)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/owners",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "owners"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Ana\",\n  \"lastName\": \"TesteApi\",\n  \"address\": \"Rua A, 100\",\n  \"city\": \"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\",\n  \"telephone\": \"1432345678\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201 (limite aceito)\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) pm.collectionVariables.set(\"ownerLimiteId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Limpeza: excluir dono do limite",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/owners/{{ownerLimiteId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "owners",
+                "{{ownerLimiteId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Exclusão bem-sucedida (2xx)\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CT-011b Cidade com 81 caracteres (limite + 1)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/owners",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "owners"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Ana\",\n  \"lastName\": \"TesteApi\",\n  \"address\": \"Rua A, 100\",\n  \"city\": \"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\",\n  \"telephone\": \"1432345678\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400 (entrada recusada)\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Erro aponta o campo city\", () => {",
+                  "    const erros = pm.response.json().schemaValidationErrors || [];",
+                  "    pm.expect(erros.map(e => e.field)).to.include(\"city\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CT-012 Endereço com 256 caracteres (limite + 1)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/owners",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "owners"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Ana\",\n  \"lastName\": \"TesteApi\",\n  \"address\": \"CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC\",\n  \"city\": \"Bauru\",\n  \"telephone\": \"1432345678\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400 (entrada recusada)\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Erro aponta o campo address\", () => {",
+                  "    const erros = pm.response.json().schemaValidationErrors || [];",
+                  "    pm.expect(erros.map(e => e.field)).to.include(\"address\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "API-03 - Idade do pet (RF-06, CT-022 a CT-025)",
+      "item": [
+        {
+          "name": "Preparação: criar dono (petOwnerId)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/owners",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "owners"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Ana\",\n  \"lastName\": \"TestePet\",\n  \"address\": \"Rua A, 100\",\n  \"city\": \"Bauru\",\n  \"telephone\": \"1432345678\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"petOwnerId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CT-022 Nascimento hoje (limite válido)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/owners/{{petOwnerId}}/pets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "owners",
+                "{{petOwnerId}}",
+                "pets"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Rex\",\n  \"birthDate\": \"{{hoje}}\",\n  \"type\": {\n    \"id\": 2,\n    \"name\": \"dog\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const fmt = d => d.toISOString().slice(0, 10);",
+                  "const hoje = new Date(); hoje.setHours(12, 0, 0, 0);",
+                  "const dias = (n) => { const d = new Date(hoje); d.setDate(d.getDate() + n); return fmt(d); };",
+                  "const anos = (n) => { const d = new Date(hoje); d.setFullYear(d.getFullYear() + n); return d; };",
+                  "pm.collectionVariables.set(\"hoje\", fmt(hoje));",
+                  "pm.collectionVariables.set(\"amanha\", dias(1));",
+                  "pm.collectionVariables.set(\"ha50anos\", fmt(anos(-50)));",
+                  "const d = anos(-50); d.setDate(d.getDate() - 1);",
+                  "pm.collectionVariables.set(\"ha50anosMais1dia\", fmt(d));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) pm.collectionVariables.set(\"petId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CT-023 Nascimento amanhã (futuro)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/owners/{{petOwnerId}}/pets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "owners",
+                "{{petOwnerId}}",
+                "pets"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Futuro\",\n  \"birthDate\": \"{{amanha}}\",\n  \"type\": {\n    \"id\": 2,\n    \"name\": \"dog\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const fmt = d => d.toISOString().slice(0, 10);",
+                  "const hoje = new Date(); hoje.setHours(12, 0, 0, 0);",
+                  "const dias = (n) => { const d = new Date(hoje); d.setDate(d.getDate() + n); return fmt(d); };",
+                  "const anos = (n) => { const d = new Date(hoje); d.setFullYear(d.getFullYear() + n); return d; };",
+                  "pm.collectionVariables.set(\"hoje\", fmt(hoje));",
+                  "pm.collectionVariables.set(\"amanha\", dias(1));",
+                  "pm.collectionVariables.set(\"ha50anos\", fmt(anos(-50)));",
+                  "const d = anos(-50); d.setDate(d.getDate() - 1);",
+                  "pm.collectionVariables.set(\"ha50anosMais1dia\", fmt(d));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Mensagem de data futura\", () => pm.expect(pm.response.text()).to.include(\"Birth date cannot be in the future\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CT-024a Exatamente 50 anos (limite válido)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/owners/{{petOwnerId}}/pets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "owners",
+                "{{petOwnerId}}",
+                "pets"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Matusalem\",\n  \"birthDate\": \"{{ha50anos}}\",\n  \"type\": {\n    \"id\": 2,\n    \"name\": \"dog\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const fmt = d => d.toISOString().slice(0, 10);",
+                  "const hoje = new Date(); hoje.setHours(12, 0, 0, 0);",
+                  "const dias = (n) => { const d = new Date(hoje); d.setDate(d.getDate() + n); return fmt(d); };",
+                  "const anos = (n) => { const d = new Date(hoje); d.setFullYear(d.getFullYear() + n); return d; };",
+                  "pm.collectionVariables.set(\"hoje\", fmt(hoje));",
+                  "pm.collectionVariables.set(\"amanha\", dias(1));",
+                  "pm.collectionVariables.set(\"ha50anos\", fmt(anos(-50)));",
+                  "const d = anos(-50); d.setDate(d.getDate() - 1);",
+                  "pm.collectionVariables.set(\"ha50anosMais1dia\", fmt(d));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CT-024b 50 anos e 1 dia (limite + 1)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/owners/{{petOwnerId}}/pets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "owners",
+                "{{petOwnerId}}",
+                "pets"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Antigo\",\n  \"birthDate\": \"{{ha50anosMais1dia}}\",\n  \"type\": {\n    \"id\": 2,\n    \"name\": \"dog\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const fmt = d => d.toISOString().slice(0, 10);",
+                  "const hoje = new Date(); hoje.setHours(12, 0, 0, 0);",
+                  "const dias = (n) => { const d = new Date(hoje); d.setDate(d.getDate() + n); return fmt(d); };",
+                  "const anos = (n) => { const d = new Date(hoje); d.setFullYear(d.getFullYear() + n); return d; };",
+                  "pm.collectionVariables.set(\"hoje\", fmt(hoje));",
+                  "pm.collectionVariables.set(\"amanha\", dias(1));",
+                  "pm.collectionVariables.set(\"ha50anos\", fmt(anos(-50)));",
+                  "const d = anos(-50); d.setDate(d.getDate() - 1);",
+                  "pm.collectionVariables.set(\"ha50anosMais1dia\", fmt(d));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Mensagem de idade máxima\", () => pm.expect(pm.response.text()).to.include(\"Birth date cannot be older than 50 years\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CT-025 Pet sem tipo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/owners/{{petOwnerId}}/pets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "owners",
+                "{{petOwnerId}}",
+                "pets"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"SemTipo\",\n  \"birthDate\": \"{{hoje}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const fmt = d => d.toISOString().slice(0, 10);",
+                  "const hoje = new Date(); hoje.setHours(12, 0, 0, 0);",
+                  "const dias = (n) => { const d = new Date(hoje); d.setDate(d.getDate() + n); return fmt(d); };",
+                  "const anos = (n) => { const d = new Date(hoje); d.setFullYear(d.getFullYear() + n); return d; };",
+                  "pm.collectionVariables.set(\"hoje\", fmt(hoje));",
+                  "pm.collectionVariables.set(\"amanha\", dias(1));",
+                  "pm.collectionVariables.set(\"ha50anos\", fmt(anos(-50)));",
+                  "const d = anos(-50); d.setDate(d.getDate() - 1);",
+                  "pm.collectionVariables.set(\"ha50anosMais1dia\", fmt(d));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400 (entrada recusada)\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Erro aponta o campo type\", () => {",
+                  "    const erros = pm.response.json().schemaValidationErrors || [];",
+                  "    pm.expect(erros.map(e => e.field)).to.include(\"type\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "API-04 - Visitas (RF-07, CT-026 e CT-027)",
+      "item": [
+        {
+          "name": "CT-026 Registrar visita válida",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/owners/{{petOwnerId}}/pets/{{petId}}/visits",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "owners",
+                "{{petOwnerId}}",
+                "pets",
+                "{{petId}}",
+                "visits"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"{{hoje}}\",\n  \"description\": \"Vacina anual\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const fmt = d => d.toISOString().slice(0, 10);",
+                  "const hoje = new Date(); hoje.setHours(12, 0, 0, 0);",
+                  "const dias = (n) => { const d = new Date(hoje); d.setDate(d.getDate() + n); return fmt(d); };",
+                  "const anos = (n) => { const d = new Date(hoje); d.setFullYear(d.getFullYear() + n); return d; };",
+                  "pm.collectionVariables.set(\"hoje\", fmt(hoje));",
+                  "pm.collectionVariables.set(\"amanha\", dias(1));",
+                  "pm.collectionVariables.set(\"ha50anos\", fmt(anos(-50)));",
+                  "const d = anos(-50); d.setDate(d.getDate() - 1);",
+                  "pm.collectionVariables.set(\"ha50anosMais1dia\", fmt(d));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CT-026b Visita aparece no pet",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pets/{{petId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pets",
+                "{{petId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Histórico contém a visita registrada\", () =>",
+                  "    pm.expect(pm.response.json().visits.map(v => v.description)).to.include(\"Vacina anual\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CT-027 Visita sem descrição",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/owners/{{petOwnerId}}/pets/{{petId}}/visits",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "owners",
+                "{{petOwnerId}}",
+                "pets",
+                "{{petId}}",
+                "visits"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"{{hoje}}\",\n  \"description\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const fmt = d => d.toISOString().slice(0, 10);",
+                  "const hoje = new Date(); hoje.setHours(12, 0, 0, 0);",
+                  "const dias = (n) => { const d = new Date(hoje); d.setDate(d.getDate() + n); return fmt(d); };",
+                  "const anos = (n) => { const d = new Date(hoje); d.setFullYear(d.getFullYear() + n); return d; };",
+                  "pm.collectionVariables.set(\"hoje\", fmt(hoje));",
+                  "pm.collectionVariables.set(\"amanha\", dias(1));",
+                  "pm.collectionVariables.set(\"ha50anos\", fmt(anos(-50)));",
+                  "const d = anos(-50); d.setDate(d.getDate() - 1);",
+                  "pm.collectionVariables.set(\"ha50anosMais1dia\", fmt(d));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400 (entrada recusada)\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Erro aponta o campo description\", () => {",
+                  "    const erros = pm.response.json().schemaValidationErrors || [];",
+                  "    pm.expect(erros.map(e => e.field)).to.include(\"description\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Limpeza: excluir dono dos testes de pet",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/owners/{{petOwnerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "owners",
+                "{{petOwnerId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "console.log(\"Limpeza do dono com pets retornou \" + pm.response.code);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "API-05 - Paginação e integridade (RF-08, RF-09, CT-029 a CT-031)",
+      "item": [
+        {
+          "name": "CT-030a size=1 (limite inferior)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v2/owners?page=0&size=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v2",
+                "owners"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "1"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Retorna 1 item\", () => pm.expect(pm.response.json().content.length).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CT-030b size=100 (limite superior)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v2/owners?page=0&size=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v2",
+                "owners"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "100"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CT-030c size=0 (limite inferior - 1)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v2/owners?page=0&size=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v2",
+                "owners"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "0"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CT-030d size=101 (limite superior + 1)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v2/owners?page=0&size=101",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v2",
+                "owners"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "101"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CT-031 page=-1",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v2/owners?page=-1&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v2",
+                "owners"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "-1"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CT-029a Excluir tipo de pet em uso (cat)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pettypes/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pettypes",
+                "1"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Exclusão recusada (status 4xx)\", () => pm.expect(pm.response.code).to.be.within(400, 499));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CT-029b Tipo em uso continua cadastrado",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pettypes/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pettypes",
+                "1"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Tipo continua sendo cat\", () => pm.expect(pm.response.code === 200 && pm.response.json().name).to.eql(\"cat\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CT-029c Pet do tipo continua cadastrado (Leo, id 1)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pets/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pets",
+                "1"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200 (pet não foi apagado)\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

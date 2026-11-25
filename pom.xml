@@ -155,6 +155,12 @@
             <artifactId>json-path</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- P2: testes de sistema/interface do grupo (versão gerenciada pelo Spring Boot) -->
+        <dependency>
+            <groupId>org.seleniumhq.selenium</groupId>
+            <artifactId>selenium-java</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
