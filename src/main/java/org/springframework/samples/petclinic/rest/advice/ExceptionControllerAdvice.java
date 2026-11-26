@@ -22,6 +22,8 @@ import java.util.List;
 import java.util.Objects;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.Path;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -144,6 +146,32 @@ public class ExceptionControllerAdvice {
             detail.setProperty("schemaValidationErrors", schemaValidationErrors);
             return ResponseEntity.status(status).body(detail);
         }
+        return ResponseEntity.status(status).body(detail);
+    }
+
+    /**
+     * Handles constraint violations on request parameters (for example {@code page} and {@code size}).
+     */
+    @ExceptionHandler(ConstraintViolationException.class)
+    @ResponseBody
+    public ResponseEntity<ProblemDetail> handleConstraintViolationException(ConstraintViolationException e, HttpServletRequest request) {
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+        ProblemDetail detail = this.detailBuild(e, status, request.getRequestURL(), ERROR_INVALID_REQUEST);
+        List<ValidationMessageDto> schemaValidationErrors = e.getConstraintViolations().stream()
+            .map(violation -> {
+                String field = null;
+                for (Path.Node node : violation.getPropertyPath()) {
+                    field = node.getName();
+                }
+                String rejectedValue = Objects.toString(violation.getInvalidValue(), "null");
+                String message = "Field '%s' %s (rejected value: %s)".formatted(field, violation.getMessage(), rejectedValue);
+                return new ValidationMessageDto(message)
+                    .putAdditionalProperty("field", field)
+                    .putAdditionalProperty("rejectedValue", rejectedValue)
+                    .putAdditionalProperty("defaultMessage", violation.getMessage());
+            })
+            .toList();
+        detail.setProperty("schemaValidationErrors", schemaValidationErrors);
         return ResponseEntity.status(status).body(detail);
     }
 
