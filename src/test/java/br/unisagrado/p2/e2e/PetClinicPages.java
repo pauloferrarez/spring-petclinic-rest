@@ -46,6 +46,9 @@ final class PetClinicPages {
         /**
          * Rola o elemento até o centro da tela antes de clicar (botões abaixo da área visível). Se o layout
          * mudar entre a rolagem e o clique (conteúdo carregado depois), tenta de novo.
+         * <p>
+         * A rolagem é instantânea: o site usa {@code scroll-behavior: smooth} (Bootstrap) e, com a rolagem
+         * animada, o clique acontecia com a página ainda em movimento (falhava no Chrome/Edge em 390x844).
          */
         protected void click(By locator) {
             wait.ignoring(ElementClickInterceptedException.class).until(d -> {
@@ -53,7 +56,8 @@ final class PetClinicPages {
                 if (element == null) {
                     return false;
                 }
-                ((JavascriptExecutor) d).executeScript("arguments[0].scrollIntoView({block: 'center'});", element);
+                ((JavascriptExecutor) d).executeScript(
+                    "arguments[0].scrollIntoView({block: 'center', behavior: 'instant'});", element);
                 element.click();
                 return true;
             });

@@ -11,6 +11,7 @@ import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Map;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
@@ -33,7 +34,8 @@ import org.openqa.selenium.firefox.FirefoxOptions;
  * <p>
  * Requer o back-end (porta 9966) e o front-end Angular (porta 4200) em execução; caso contrário os
  * testes são ignorados. Propriedades: {@code -Dbrowser=chrome|edge|firefox}, {@code -Dheadless=true},
- * {@code -DfrontUrl=http://localhost:4200}. Em caso de falha, salva captura de tela em
+ * {@code -DfrontUrl=http://localhost:4200}, {@code -Dwindow=1366x768} (tamanho da janela; ex.: {@code 390x844} para
+ * celular – RNF-02). Em caso de falha, salva captura de tela em
  * {@code target/e2e-screenshots}.
  */
 @Tag("e2e")
@@ -59,12 +61,32 @@ abstract class E2eTestBase {
     void startBrowser() {
         Assumptions.assumeTrue(isUp(FRONT_URL), "Front-end não está em execução em " + FRONT_URL);
         boolean headless = Boolean.getBoolean("headless");
+        String[] size = System.getProperty("window", "1366x768").split("x");
+        int width = Integer.parseInt(size[0]);
+        int height = Integer.parseInt(size[1]);
+        // Os navegadores impõem largura mínima de janela (~500 px). Para larguras menores (celular), Chrome e Edge
+        // usam emulação de dispositivo, que garante a área visível exata; o Firefox não tem esse recurso.
+        boolean mobile = width < 500;
+        Map<String, Object> mobileEmulation = Map.of(
+            "deviceMetrics", Map.of("width", width, "height", height, "pixelRatio", 3.0, "touch", true));
         driver = switch (System.getProperty("browser", "chrome")) {
-            case "edge" -> new EdgeDriver(headless ? new EdgeOptions().addArguments("--headless=new") : new EdgeOptions());
+            case "edge" -> {
+                EdgeOptions options = new EdgeOptions();
+                if (headless) options.addArguments("--headless=new");
+                if (mobile) options.setExperimentalOption("mobileEmulation", mobileEmulation);
+                yield new EdgeDriver(options);
+            }
             case "firefox" -> new FirefoxDriver(headless ? new FirefoxOptions().addArguments("-headless") : new FirefoxOptions());
-            default -> new ChromeDriver(headless ? new ChromeOptions().addArguments("--headless=new") : new ChromeOptions());
+            default -> {
+                ChromeOptions options = new ChromeOptions();
+                if (headless) options.addArguments("--headless=new");
+                if (mobile) options.setExperimentalOption("mobileEmulation", mobileEmulation);
+                yield new ChromeDriver(options);
+            }
         };
-        driver.manage().window().setSize(new org.openqa.selenium.Dimension(1366, 768));
+        if (!mobile || driver instanceof FirefoxDriver) {
+            driver.manage().window().setSize(new org.openqa.selenium.Dimension(width, height));
+        }
         driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(30));
     }
 
