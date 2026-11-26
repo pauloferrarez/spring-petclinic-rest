@@ -1058,7 +1058,7 @@
       ]
     },
     {
-      "name": "API-05 - Paginação e integridade (RF-08, RF-09, CT-029 a CT-031)",
+      "name": "API-05 - Paginação (RF-09, CT-030 e CT-031)",
       "item": [
         {
           "name": "CT-030a size=1 (limite inferior)",
@@ -1250,7 +1250,13 @@
               }
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "name": "API-06 - Exclusão de tipo de pet em uso (RF-08, CT-029) - defeito conhecido DEF-03, issue #3",
+      "description": "Casos que reproduzem o DEF-03 (aberto). No pipeline, esta pasta roda em etapa separada que não bloqueia o build, até o defeito ser corrigido. Deve ser a última pasta, porque apaga o tipo \"cat\" e os pets associados.",
+      "item": [
         {
           "name": "CT-029a Excluir tipo de pet em uso (cat)",
           "request": {

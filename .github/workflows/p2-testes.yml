@@ -1,0 +1,83 @@
+# Pipeline do grupo P2 (Testes e Qualidade de Software – UNISAGRADO).
+# Executa a cada push na branch testes-p2: build, testes automatizados (unidade, TDD e testes do
+# projeto original), verificação de cobertura (JaCoCo) e testes de API com a coleção Postman do grupo.
+# Os testes Selenium (tag e2e) não rodam aqui: exigem o front-end Angular em execução.
+name: P2 - testes automatizados
+
+on:
+  push:
+    branches: [ testes-p2 ]
+  pull_request:
+    branches: [ testes-p2 ]
+  workflow_dispatch:
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Obter o código
+        uses: actions/checkout@v4
+
+      - name: Preparar o Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build, testes JUnit e cobertura (JaCoCo)
+        run: ./mvnw -B verify -DexcludedGroups=e2e
+
+      - name: Subir a API (perfil h2, base de dados recriada)
+        run: |
+          nohup java -jar target/spring-petclinic-rest-*.jar > api.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:9966/petclinic/actuator/health > /dev/null; then
+              echo "API disponível"; exit 0
+            fi
+            sleep 2
+          done
+          echo "API não ficou disponível em 120 s"; cat api.log; exit 1
+
+      - name: Aquecimento da API (descarta a primeira requisição – OBS-03)
+        run: curl -s -o /dev/null http://localhost:9966/petclinic/api/owners
+
+      - name: Testes de API – regressão (Newman, API-01 a API-05)
+        run: >
+          npx -y newman@6 run tests-p2/postman/P2_grupo.postman_collection.json
+          -e tests-p2/postman/P2_local.postman_environment.json
+          --folder "API-01 - Ciclo de vida do dono (RF-01, CT-003)"
+          --folder "API-02 - Validações do cadastro de dono (RF-01, RF-02, RF-03)"
+          --folder "API-03 - Idade do pet (RF-06, CT-022 a CT-025)"
+          --folder "API-04 - Visitas (RF-07, CT-026 e CT-027)"
+          --folder "API-05 - Paginação (RF-09, CT-030 e CT-031)"
+          --reporters cli,junit
+          --reporter-junit-export newman/newman-regressao.xml
+
+      - name: Testes de API – defeito conhecido DEF-03, issue #3 (não bloqueia o build)
+        id: def03
+        continue-on-error: true
+        run: >
+          npx -y newman@6 run tests-p2/postman/P2_grupo.postman_collection.json
+          -e tests-p2/postman/P2_local.postman_environment.json
+          --folder "API-06 - Exclusão de tipo de pet em uso (RF-08, CT-029) - defeito conhecido DEF-03, issue #3"
+          --reporters cli,junit
+          --reporter-junit-export newman/newman-def03.xml
+
+      - name: Aviso sobre o DEF-03
+        if: steps.def03.outcome == 'failure'
+        run: echo "::warning title=DEF-03 (issue #3) continua aberto::A exclusão de tipo de pet em uso ainda é aceita e apaga os pets associados (CT-029)."
+
+      - name: Publicar relatórios
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorios-p2
+          path: |
+            target/surefire-reports/
+            target/site/jacoco/
+            newman/
+            api.log
+          if-no-files-found: warn
