@@ -56,7 +56,8 @@ jobs:
           --reporters cli,junit
           --reporter-junit-export newman/newman-regressao.xml
 
-      - name: Testes de API – defeito conhecido DEF-03, issue #3 (não bloqueia o build)
+      # Atenção: em YAML, " #" inicia comentário; por isso nomes e comandos com "#3" ficam entre aspas.
+      - name: "Testes de API – defeito conhecido DEF-03, issue #3 (não bloqueia o build)"
         id: def03
         continue-on-error: true
         run: >
@@ -68,7 +69,8 @@ jobs:
 
       - name: Aviso sobre o DEF-03
         if: steps.def03.outcome == 'failure'
-        run: echo "::warning title=DEF-03 (issue #3) continua aberto::A exclusão de tipo de pet em uso ainda é aceita e apaga os pets associados (CT-029)."
+        run: |
+          echo "::warning title=DEF-03 (issue #3) continua aberto::A exclusão de tipo de pet em uso ainda é aceita e apaga os pets associados (CT-029)."
 
       - name: Publicar relatórios
         if: always()
