@@ -147,7 +147,7 @@ public class ExceptionControllerAdvice {
      * @param request {@link HttpServletRequest} object referring to the current request.
      * @return A {@link ResponseEntity} containing the error information and a 400 Bad Request status.
      */
-    // FALHA CONTROLADA (P2): anotação removida de propósito para demonstrar o pipeline detectando regressão do DEF-02
+    @ExceptionHandler(ConstraintViolationException.class)
     @ResponseBody
     public ResponseEntity<ProblemDetail> handleConstraintViolationException(ConstraintViolationException e, HttpServletRequest request) {
         HttpStatus status = HttpStatus.BAD_REQUEST;
