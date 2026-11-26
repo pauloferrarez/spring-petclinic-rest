@@ -1,0 +1,70 @@
+{
+  "info": {
+    "name": "P2 - Desempenho (NF-01 e NF-02)",
+    "description": "Testes não funcionais de desempenho do grupo P2 (RNF-01). Executar com 31 iterações (newman -n 31): a 1ª é descartada como aquecimento (OBS-03) e as 30 seguintes entram no cálculo do percentil 95. Tempo máximo: variável limiteMs do ambiente.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "NF-01 Listar donos (GET /owners)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Retorna a lista de donos', () => pm.expect(pm.response.json()).to.be.an('array').that.is.not.empty);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/owners"
+      }
+    },
+    {
+      "name": "NF-02 Cadastrar dono (POST /owners)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status 201', () => pm.response.to.have.status(201));",
+              "pm.collectionVariables.set('perfOwnerId', pm.response.json().id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"firstName\":\"Carga\",\"lastName\":\"TesteDesempenho\",\"address\":\"Rua Teste, 1\",\"city\":\"Bauru\",\"telephone\":\"1432345678\"}"
+        },
+        "url": "{{baseUrl}}/owners"
+      }
+    },
+    {
+      "name": "Limpeza: excluir dono criado (não medido)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status 204', () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "url": "{{baseUrl}}/owners/{{perfOwnerId}}"
+      }
+    }
+  ]
+}
