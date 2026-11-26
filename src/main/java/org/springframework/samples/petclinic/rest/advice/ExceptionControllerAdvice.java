@@ -126,18 +126,8 @@ public class ExceptionControllerAdvice {
         if (bindingResult.hasErrors()) {
             errors.addAllErrors(bindingResult);
             List<ValidationMessageDto> schemaValidationErrors = bindingResult.getFieldErrors().stream()
-                .map(fieldError -> {
-                    String rejectedValue = Objects.toString(fieldError.getRejectedValue(), "null");
-                    String defaultMessage = Objects.toString(fieldError.getDefaultMessage(), "Validation failed");
-                    String message = "Field '%s' %s (rejected value: %s)".formatted(
-                        fieldError.getField(),
-                        defaultMessage,
-                        rejectedValue);
-                    return new ValidationMessageDto(message)
-                        .putAdditionalProperty("field", fieldError.getField())
-                        .putAdditionalProperty("rejectedValue", rejectedValue)
-                        .putAdditionalProperty("defaultMessage", defaultMessage);
-                })
+                .map(fieldError -> validationMessage(
+                    fieldError.getField(), fieldError.getRejectedValue(), fieldError.getDefaultMessage()))
                 .toList();
             logger.debug("Validation error at {} {}: {}",
                 request.getMethod(),
@@ -150,7 +140,12 @@ public class ExceptionControllerAdvice {
     }
 
     /**
-     * Handles constraint violations on request parameters (for example {@code page} and {@code size}).
+     * Handles {@link ConstraintViolationException} thrown by method validation of request parameters
+     * (for example {@code page} and {@code size} of the paginated endpoints), returning 400 instead of 500.
+     *
+     * @param e The {@link ConstraintViolationException} to be handled
+     * @param request {@link HttpServletRequest} object referring to the current request.
+     * @return A {@link ResponseEntity} containing the error information and a 400 Bad Request status.
      */
     @ExceptionHandler(ConstraintViolationException.class)
     @ResponseBody
@@ -158,21 +153,35 @@ public class ExceptionControllerAdvice {
         HttpStatus status = HttpStatus.BAD_REQUEST;
         ProblemDetail detail = this.detailBuild(e, status, request.getRequestURL(), ERROR_INVALID_REQUEST);
         List<ValidationMessageDto> schemaValidationErrors = e.getConstraintViolations().stream()
-            .map(violation -> {
-                String field = null;
-                for (Path.Node node : violation.getPropertyPath()) {
-                    field = node.getName();
-                }
-                String rejectedValue = Objects.toString(violation.getInvalidValue(), "null");
-                String message = "Field '%s' %s (rejected value: %s)".formatted(field, violation.getMessage(), rejectedValue);
-                return new ValidationMessageDto(message)
-                    .putAdditionalProperty("field", field)
-                    .putAdditionalProperty("rejectedValue", rejectedValue)
-                    .putAdditionalProperty("defaultMessage", violation.getMessage());
-            })
+            .map(violation -> validationMessage(
+                leafName(violation.getPropertyPath()), violation.getInvalidValue(), violation.getMessage()))
             .toList();
+        logger.debug("Validation error at {} {}: {}", request.getMethod(), request.getRequestURI(), e.getMessage());
         detail.setProperty("schemaValidationErrors", schemaValidationErrors);
         return ResponseEntity.status(status).body(detail);
+    }
+
+    /**
+     * Builds one entry of {@code schemaValidationErrors}, in the same format for body fields and request parameters.
+     */
+    private static ValidationMessageDto validationMessage(String field, Object rejected, String defaultMessage) {
+        String rejectedValue = Objects.toString(rejected, "null");
+        String message = Objects.toString(defaultMessage, "Validation failed");
+        return new ValidationMessageDto("Field '%s' %s (rejected value: %s)".formatted(field, message, rejectedValue))
+            .putAdditionalProperty("field", field)
+            .putAdditionalProperty("rejectedValue", rejectedValue)
+            .putAdditionalProperty("defaultMessage", message);
+    }
+
+    /**
+     * Returns the last node of a property path, e.g. {@code size} for {@code listOwnersPage.size}.
+     */
+    private static String leafName(Path path) {
+        String name = null;
+        for (Path.Node node : path) {
+            name = node.getName();
+        }
+        return name;
     }
 
 }
